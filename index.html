@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Temp Mail - canhquy.pw</title>
+    <title>Temp Mail</title>
+    <link rel="icon" href="https://img.icons8.com/?size=100&id=xLIkjgcmFOsC&format=png&color=000000" type="image/x-icon">
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -16,7 +17,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 0;
+            gap: 8px;
             margin-bottom: 10px;
         }
         .input-wrapper {
@@ -30,7 +31,16 @@
             border: 1px solid #ccc;
             border-radius: 8px;
             background-color: #fff;
-            width: 250px;
+            width: 220px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        #domainInput {
+            font-size: 18px;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+            width: 180px;
             box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
         }
         #copyBtn {
@@ -42,13 +52,7 @@
             cursor: pointer;
             color: #4CAF50;
         }
-        #copyBtn:hover {
-            color: #45a049;
-        }
-        #domainSuffix {
-            font-size: 18px;
-            margin-left: 8px;
-        }
+        #copyBtn:hover { color: #45a049; }
         #createBtn, #refreshBtn {
             padding: 10px 15px;
             font-size: 16px;
@@ -102,7 +106,7 @@
 </head>
 <body>
 
-<h1>Temp Mail - canhquy.pw</h1>
+<h1>Temp Mail</h1>
 
 <div id="controls">
     <div id="emailForm">
@@ -110,7 +114,8 @@
             <input type="text" id="usernameInput" placeholder="username">
             <button id="copyBtn" title="Copy Email">📋</button>
         </div>
-        <span id="domainSuffix">@canhquy.pw</span>
+        <span>@</span>
+        <input type="text" id="domainInput" placeholder="domain" value="canhquy.pw">
     </div>
     <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
@@ -153,11 +158,11 @@ async function createEmail() {
 
 async function fetchEmails() {
     const username = document.getElementById('usernameInput').value.trim();
-    if (!username) {
-        alert("Vui lòng nhập username trước khi lấy thư!");
+    const domain = document.getElementById('domainInput').value.trim();
+    if (!username || !domain) {
         return;
     }
-    const emailFull = username + '@canhquy.pw';
+    const emailFull = username + '@' + domain;
 
     document.getElementById('loading').style.display = "block";
     try {
@@ -165,7 +170,6 @@ async function fetchEmails() {
         const mails = await res.json();
         cachedEmails = mails;
     } catch (e) {
-        alert("Không thể lấy thư từ server.");
         console.error(e);
         cachedEmails = [];
     }
@@ -212,16 +216,27 @@ function handleOverlayClick(event) {
 }
 
 // Nút Copy
-document.getElementById('copyBtn').addEventListener('click', function() {
+document.getElementById('copyBtn').addEventListener('click', async function() {
+    const copyBtn = document.getElementById('copyBtn');
     const username = document.getElementById('usernameInput').value.trim();
-    if (!username) {
-        alert("Bạn chưa có username để copy!");
+    const domain = document.getElementById('domainInput').value.trim();
+    if (!username || !domain) {
         return;
     }
-    const fullEmail = username + "@canhquy.pw";
+    const fullEmail = username + "@" + domain;
 
-    navigator.clipboard.writeText(fullEmail)
-        
+    try {
+        await navigator.clipboard.writeText(fullEmail);
+        copyBtn.innerHTML = "✅";
+        setTimeout(() => {
+            copyBtn.innerHTML = "📋";
+        }, 2000);
+    } catch (err) {
+        copyBtn.innerHTML = "❌";
+        setTimeout(() => {
+            copyBtn.innerHTML = "📋";
+        }, 2000);
+    }
 });
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
