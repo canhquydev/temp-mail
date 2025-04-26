@@ -1,183 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Temp Mail - canhquy.pw</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5fef9;
-      color: #333;
-    }
-    header {
-      background-color: #4CAF50;
-      color: white;
-      padding: 20px 0;
-      text-align: center;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .container {
-      width: 90%;
-      max-width: 800px;
-      margin: 20px auto;
-    }
-    #createBtn, #refreshBtn {
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      margin: 10px 5px;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-    #createBtn:hover, #refreshBtn:hover {
-      background-color: #45a049;
-    }
-    #emailDisplay {
-      margin-top: 10px;
-      font-size: 18px;
-    }
-    #emailList {
-      margin-top: 20px;
-    }
-    .email-item {
-      background: #ffffff;
-      margin-bottom: 10px;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-    .email-item:hover {
-      background-color: #e8f5e9;
-    }
-    #popupOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-    #popupContent {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      width: 90%;
-      max-width: 600px;
-      position: relative;
-      animation: fadeIn 0.3s;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    .closeBtn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #f44336;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .spinner {
-      border: 4px solid #f3f3f3;
-      border-top: 4px solid #4CAF50;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Temp Mail - canhquy.pw</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1 { text-align: center; color: #4CAF50; }
+        #controls { text-align: center; margin-bottom: 20px; }
+        #emailDisplay { font-size: 22px; margin-bottom: 10px; }
+        #createBtn, #refreshBtn {
+            padding: 10px 20px; font-size: 16px; margin: 0 5px;
+            cursor: pointer; background-color: #4CAF50; color: white;
+            border: none; border-radius: 5px; transition: background-color 0.3s;
+        }
+        #createBtn:hover, #refreshBtn:hover { background-color: #45a049; }
+        #emailList {
+            margin-top: 20px; max-width: 800px;
+            margin-left: auto; margin-right: auto;
+        }
+        .email-item {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: box-shadow 0.3s;
+        }
+        .email-item:hover {
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            background-color: #f0f0f0;
+        }
+        .email-item strong { display: block; font-size: 18px; color: #4CAF50; margin-bottom: 5px; }
+        .email-item small { color: #777; }
+
+        #loading { display: none; text-align: center; margin: 20px; }
+        .spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            margin: 10px auto;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg);}
+            100% { transform: rotate(360deg);}
+        }
+
+        #popupOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #popupContent {
+            background: #ffffff;
+            color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+        .closeBtn {
+            background: #e53935;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            float: right;
+            border-radius: 5px;
+            margin-top: -10px;
+            margin-right: -10px;
+        }
+        .closeBtn:hover { background: #d32f2f; }
+    </style>
 </head>
 <body>
 
-<header>
-  <div class="container">
-    <h1>TempMail</h1>
-    <button id="createBtn">Tạo Email Random</button>
+<h1>Temp Mail - canhquy.pw</h1>
+
+<div id="controls">
     <div id="emailDisplay">Email chưa tạo</div>
-  </div>
-</header>
-
-<main>
-  <div class="container">
+    <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
-    <div id="loading" style="display:none;" class="spinner"></div>
-    <div id="emailList"></div>
-  </div>
-</main>
+</div>
 
-<div id="popupOverlay" style="display:none;">
-  <div id="popupContent">
-    <button class="closeBtn" onclick="closePopup()">X</button>
-    <div id="popupBody"></div>
-  </div>
+<div id="loading">
+    <div class="spinner"></div>
+    <div>Đang lấy thư...</div>
+</div>
+
+<div id="emailList"></div>
+
+<div id="popupOverlay">
+    <div id="popupContent">
+        <button class="closeBtn" onclick="closePopup()">X</button>
+        <div id="popupBody"></div>
+    </div>
 </div>
 
 <script>
-let currentEmail = "";
-let reloadInterval;
+let cachedEmails = [];
+let autoRefreshInterval = null;
 
 async function createEmail() {
-  const res = await fetch('/create_email', { method: 'POST' });
-  const data = await res.json();
-  currentEmail = data.email;
-  document.getElementById('emailDisplay').innerText = "Email của bạn: " + currentEmail;
-  fetchEmails();
-
-  if (reloadInterval) clearInterval(reloadInterval);
-  reloadInterval = setInterval(fetchEmails, 30000);
+    const res = await fetch('/create_email', { method: 'POST' });
+    const data = await res.json();
+    document.getElementById('emailDisplay').innerText = "Email của bạn: " + data.email;
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(fetchEmails, 30000);
 }
 
 async function fetchEmails() {
-  if (!currentEmail) return;
-  document.getElementById('loading').style.display = 'block';
-  const res = await fetch('/list_emails?email=' + encodeURIComponent(currentEmail));
-  const mails = await res.json();
+    document.getElementById('loading').style.display = "block";
+    const res = await fetch('/list_emails');
+    const mails = await res.json();
+    cachedEmails = mails;
+    document.getElementById('loading').style.display = "none";
 
-  const emailList = document.getElementById('emailList');
-  emailList.innerHTML = "";
-  document.getElementById('loading').style.display = 'none';
+    const emailList = document.getElementById('emailList');
+    emailList.innerHTML = "";
 
-  if (mails.length === 0) {
-    emailList.innerHTML = "<p style='text-align:center;'>Chưa có thư nào</p>";
-  } else {
-    mails.forEach(mail => {
-      const div = document.createElement('div');
-      div.className = 'email-item';
-      div.innerHTML = `<strong>${mail.subject}</strong><br><small>From: ${mail.from} | Date: ${mail.date}</small>`;
-      div.onclick = () => showPopup(mail);
-      emailList.appendChild(div);
-    });
-  }
+    if (mails.length === 0) {
+        emailList.innerHTML = "<p style='text-align:center;'>Chưa có thư nào</p>";
+    } else {
+        mails.forEach((mail, index) => {
+            const div = document.createElement('div');
+            div.className = 'email-item';
+            div.innerHTML = `<strong>${mail.subject}</strong><small>From: ${mail.from}<br>Date: ${mail.date}</small>`;
+            div.onclick = () => showPopup(index);
+            emailList.appendChild(div);
+        });
+    }
 }
 
-function showPopup(mail) {
-  document.getElementById('popupBody').innerHTML = `<h2>${mail.subject}</h2><p><strong>From:</strong> ${mail.from}</p><p><strong>Date:</strong> ${mail.date}</p><div style='margin-top:15px;'>${mail.body}</div>`;
-  document.getElementById('popupOverlay').style.display = 'flex';
+function showPopup(index) {
+    const mail = cachedEmails[index];
+    const popupBody = document.getElementById('popupBody');
+    popupBody.innerHTML = `
+        <h2 style="color:#4CAF50;">${mail.subject}</h2>
+        <p><strong>From:</strong> ${mail.from}</p>
+        <p><strong>Date:</strong> ${mail.date}</p>
+        <div style="margin-top:20px;">${mail.body}</div>
+    `;
+    document.getElementById('popupOverlay').style.display = "flex";
 }
 
 function closePopup() {
-  document.getElementById('popupOverlay').style.display = 'none';
+    document.getElementById('popupOverlay').style.display = "none";
 }
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
