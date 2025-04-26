@@ -38,17 +38,25 @@ def list_emails():
     target_email = request.args.get('email', "").lower()
     mails = []
 
-    try:
+    def fetch_by_label(label):
         query = f"to:{target_email}"
-        results = gmail_service.users().messages().list(
+        result = gmail_service.users().messages().list(
             userId='me',
             q=query,
-            labelIds=["INBOX", "SPAM"],  # 👈 QUAN TRỌNG: thêm label SPAM vào đây
+            labelIds=[label],
             maxResults=10
         ).execute()
-        messages = results.get('messages', [])
+        return result.get('messages', [])
 
-        for msg in messages:
+    try:
+        # lấy thư ở INBOX
+        inbox_messages = fetch_by_label("INBOX")
+        # lấy thư ở SPAM
+        spam_messages = fetch_by_label("SPAM")
+        
+        all_messages = (inbox_messages or []) + (spam_messages or [])
+
+        for msg in all_messages:
             msg_detail = gmail_service.users().messages().get(userId='me', id=msg['id']).execute()
             payload = msg_detail.get('payload', {})
             headers = payload.get("headers", [])
