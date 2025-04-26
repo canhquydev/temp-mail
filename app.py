@@ -1,33 +1,27 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-import base64
-import email
 import os
+import json
+import base64
 import random
 import string
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-# Gmail API Scope
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def gmail_authenticate():
-    creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
-    return build('gmail', 'v1', credentials=creds)
+    credentials_data = os.environ.get('GOOGLE_CREDENTIALS')
+    token_data = os.environ.get('GOOGLE_TOKEN')
+
+    if not credentials_data or not token_data:
+        raise Exception("Missing GOOGLE_CREDENTIALS or GOOGLE_TOKEN")
+
+    creds = Credentials.from_authorized_user_info(json.loads(token_data), scopes=SCOPES)
+    service = build('gmail', 'v1', credentials=creds)
+    return service
 
 gmail_service = gmail_authenticate()
 
@@ -42,9 +36,12 @@ def list_emails():
     target_email = request.args.get('email', "").lower()
     mails = []
 
+    if not target_email:
+        return jsonify([])
+
     try:
         query = f"to:{target_email}"
-        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=10).execute()
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=5).execute()
         messages = results.get('messages', [])
 
         for msg in messages:
@@ -59,16 +56,9 @@ def list_emails():
                     if part['mimeType'] == 'text/html':
                         body = base64.urlsafe_b64decode(part['body']['data']).decode()
 
-            subject = ""
-            sender = ""
-            date = ""
-            for header in headers:
-                if header['name'] == 'Subject':
-                    subject = header['value']
-                if header['name'] == 'From':
-                    sender = header['value']
-                if header['name'] == 'Date':
-                    date = header['value']
+            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
+            sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
+            date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
 
             mails.append({
                 "id": msg['id'],
@@ -88,4 +78,5 @@ def serve_index():
     return send_from_directory('.', 'index.html')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
