@@ -1,93 +1,92 @@
 from flask import Flask, request, jsonify, session, send_from_directory
-import imaplib
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+import base64
 import email
-from email.header import decode_header
+import os
 import random
 import string
-import os
+
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-IMAP_SERVER = 'imap.gmail.com'
-EMAIL_ACCOUNT = 'nickcamitem@gmail.com'
-APP_PASSWORD = 'pkoynswpaiqgsnzs'
-DOMAIN = "canhquy.pw"
+# Gmail API Scope
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
-def parse_email_body(msg):
-    body = ""
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disposition = str(part.get("Content-Disposition"))
+def gmail_authenticate():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    return build('gmail', 'v1', credentials=creds)
 
-            if content_type == "text/html" and "attachment" not in content_disposition:
-                body = part.get_payload(decode=True).decode(errors="ignore")
-                return body  # Giữ nguyên HTML
-            if content_type == "text/plain" and "attachment" not in content_disposition and not body:
-                body = "<pre>" + part.get_payload(decode=True).decode(errors="ignore") + "</pre>"
-    else:
-        content_type = msg.get_content_type()
-        if content_type == "text/html":
-            body = msg.get_payload(decode=True).decode(errors="ignore")
-        elif content_type == "text/plain":
-            body = "<pre>" + msg.get_payload(decode=True).decode(errors="ignore") + "</pre>"
-    return body
-
-def fetch_all_emails():
-    mails = []
-    try:
-        mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-        mail.login(EMAIL_ACCOUNT, APP_PASSWORD)
-
-        mail.select("INBOX")
-        status, messages = mail.search(None, "ALL")
-        if status != "OK":
-            return []
-
-        mail_ids = messages[0].split()[-5:]  # Chỉ lấy 5 mail mới nhất
-
-        for num in reversed(mail_ids):
-            status, data = mail.fetch(num, '(RFC822)')
-            if status != "OK":
-                continue
-            for response_part in data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-
-                    subject, encoding = decode_header(msg.get("Subject"))[0]
-                    if isinstance(subject, bytes):
-                        subject = subject.decode(encoding or 'utf-8', errors='ignore')
-                    from_ = msg.get("From", "(No From)")
-                    date_ = msg.get("Date", "(No Date)")
-                    body = parse_email_body(msg)
-
-                    mails.append({
-                        "id": num.decode(),
-                        "subject": subject,
-                        "from": from_,
-                        "date": date_,
-                        "body": body
-                    })
-        mail.logout()
-        return mails
-    except Exception as e:
-        print("Error fetching emails:", e)
-        return []
+gmail_service = gmail_authenticate()
 
 @app.route('/create_email', methods=['POST'])
 def create_email():
-    new_email = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8)) + "@" + DOMAIN
-    session['email'] = new_email
-    return jsonify({"email": new_email})
+    new_username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    session['email'] = new_username + "@canhquy.pw"
+    return jsonify({"email": session['email']})
 
 @app.route('/list_emails', methods=['GET'])
 def list_emails():
-    mails = fetch_all_emails()
-    return jsonify(mails)
+    target_email = request.args.get('email', "").lower()
+    mails = []
+
+    try:
+        query = f"to:{target_email}"
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=10).execute()
+        messages = results.get('messages', [])
+
+        for msg in messages:
+            msg_detail = gmail_service.users().messages().get(userId='me', id=msg['id']).execute()
+            payload = msg_detail.get('payload', {})
+            headers = payload.get("headers", [])
+            parts = payload.get('parts', [])
+            body = ""
+
+            if parts:
+                for part in parts:
+                    if part['mimeType'] == 'text/html':
+                        body = base64.urlsafe_b64decode(part['body']['data']).decode()
+
+            subject = ""
+            sender = ""
+            date = ""
+            for header in headers:
+                if header['name'] == 'Subject':
+                    subject = header['value']
+                if header['name'] == 'From':
+                    sender = header['value']
+                if header['name'] == 'Date':
+                    date = header['value']
+
+            mails.append({
+                "id": msg['id'],
+                "subject": subject,
+                "from": sender,
+                "date": date,
+                "body": body
+            })
+
+        return jsonify(mails)
+    except Exception as e:
+        print(f"Error fetching emails: {e}")
+        return jsonify([])
 
 @app.route('/')
 def serve_index():
     return send_from_directory('.', 'index.html')
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
