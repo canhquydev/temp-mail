@@ -1,27 +1,29 @@
 from flask import Flask, request, jsonify, session, send_from_directory
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-import os
-import json
 import base64
+import os
 import random
 import string
+import json
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
+# Gmail API Scope
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def gmail_authenticate():
+    creds = None
     credentials_data = os.environ.get('GOOGLE_CREDENTIALS')
     token_data = os.environ.get('GOOGLE_TOKEN')
 
-    if not credentials_data or not token_data:
-        raise Exception("Missing GOOGLE_CREDENTIALS or GOOGLE_TOKEN")
+    if credentials_data and token_data:
+        creds = Credentials.from_authorized_user_info(json.loads(token_data), scopes=SCOPES)
+    else:
+        raise Exception("Missing GOOGLE_CREDENTIALS or GOOGLE_TOKEN environment variables.")
 
-    creds = Credentials.from_authorized_user_info(json.loads(token_data), scopes=SCOPES)
-    service = build('gmail', 'v1', credentials=creds)
-    return service
+    return build('gmail', 'v1', credentials=creds)
 
 gmail_service = gmail_authenticate()
 
@@ -36,12 +38,9 @@ def list_emails():
     target_email = request.args.get('email', "").lower()
     mails = []
 
-    if not target_email:
-        return jsonify([])
-
     try:
         query = f"to:{target_email}"
-        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=5).execute()
+        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=10).execute()
         messages = results.get('messages', [])
 
         for msg in messages:
@@ -53,7 +52,7 @@ def list_emails():
 
             if parts:
                 for part in parts:
-                    if part['mimeType'] == 'text/html':
+                    if part['mimeType'] == 'text/html' and 'data' in part['body']:
                         body = base64.urlsafe_b64decode(part['body']['data']).decode()
 
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
