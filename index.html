@@ -221,12 +221,7 @@ document.getElementById('copyBtn').addEventListener('click', function() {
     const fullEmail = username + "@canhquy.pw";
 
     navigator.clipboard.writeText(fullEmail)
-        .then(() => {
-            alert("✅ Đã copy: " + fullEmail);
-        })
-        .catch(err => {
-            alert("❌ Không thể copy. Lỗi: " + err);
-        });
+        
 });
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
