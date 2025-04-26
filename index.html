@@ -21,15 +21,23 @@
             width: 200px;
         }
         #domainSuffix { font-size: 18px; }
-        #createBtn, #refreshBtn {
-            padding: 10px 20px; font-size: 16px; margin: 0 5px;
-            cursor: pointer; background-color: #4CAF50; color: white;
-            border: none; border-radius: 5px; transition: background-color 0.3s;
+        #createBtn, #refreshBtn, #copyBtn {
+            padding: 10px 15px;
+            font-size: 16px;
+            margin: 0 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
         }
-        #createBtn:hover, #refreshBtn:hover { background-color: #45a049; }
+        #createBtn:hover, #refreshBtn:hover, #copyBtn:hover { background-color: #45a049; }
         #emailList {
-            margin-top: 20px; max-width: 800px;
-            margin-left: auto; margin-right: auto;
+            margin-top: 20px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
         }
         .email-item {
             background: #ffffff;
@@ -72,6 +80,7 @@
     <div id="emailForm">
         <input type="text" id="usernameInput" placeholder="username">
         <span id="domainSuffix">@canhquy.pw</span>
+        <button id="copyBtn" title="Copy Email">📋 Copy</button>
     </div>
     <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
@@ -171,6 +180,24 @@ function handleOverlayClick(event) {
         closePopup();
     }
 }
+
+// Nút Copy
+document.getElementById('copyBtn').addEventListener('click', function() {
+    const username = document.getElementById('usernameInput').value.trim();
+    if (!username) {
+        alert("Bạn chưa có username để copy!");
+        return;
+    }
+    const fullEmail = username + "@canhquy.pw";
+
+    navigator.clipboard.writeText(fullEmail)
+        .then(() => {
+            alert("✅ Đã copy: " + fullEmail);
+        })
+        .catch(err => {
+            alert("❌ Không thể copy. Lỗi: " + err);
+        });
+});
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
 document.getElementById('refreshBtn').addEventListener('click', fetchEmails);
