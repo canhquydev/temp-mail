@@ -40,7 +40,12 @@ def list_emails():
 
     try:
         query = f"to:{target_email}"
-        results = gmail_service.users().messages().list(userId='me', q=query, maxResults=10).execute()
+        results = gmail_service.users().messages().list(
+            userId='me',
+            q=query,
+            labelIds=["INBOX", "SPAM"],  # 👈 QUAN TRỌNG: thêm label SPAM vào đây
+            maxResults=10
+        ).execute()
         messages = results.get('messages', [])
 
         for msg in messages:
@@ -71,6 +76,7 @@ def list_emails():
     except Exception as e:
         print(f"Error fetching emails: {e}")
         return jsonify([])
+
 
 @app.route('/')
 def serve_index():
