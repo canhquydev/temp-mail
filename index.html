@@ -12,7 +12,15 @@
         }
         h1 { text-align: center; color: #4CAF50; }
         #controls { text-align: center; margin-bottom: 20px; }
-        #emailDisplay { font-size: 22px; margin-bottom: 10px; }
+        #emailForm { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px; }
+        #usernameInput {
+            font-size: 18px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 200px;
+        }
+        #domainSuffix { font-size: 18px; }
         #createBtn, #refreshBtn {
             padding: 10px 20px; font-size: 16px; margin: 0 5px;
             cursor: pointer; background-color: #4CAF50; color: white;
@@ -38,7 +46,6 @@
         }
         .email-item strong { display: block; font-size: 18px; color: #4CAF50; margin-bottom: 5px; }
         .email-item small { color: #777; }
-
         #loading { display: none; text-align: center; margin: 20px; }
         .spinner {
             border: 5px solid #f3f3f3;
@@ -49,45 +56,11 @@
             margin: 10px auto;
             animation: spin 1s linear infinite;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg);}
-            100% { transform: rotate(360deg);}
-        }
-
-        #popupOverlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-        }
-        #popupContent {
-            background: #ffffff;
-            color: #333;
-            padding: 20px;
-            border-radius: 10px;
-            width: 80%;
-            max-width: 600px;
-            animation: fadeIn 0.5s;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-20px);}
-            to { opacity: 1; transform: translateY(0);}
-        }
-        .closeBtn {
-            background: #e53935;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            cursor: pointer;
-            float: right;
-            border-radius: 5px;
-            margin-top: -10px;
-            margin-right: -10px;
-        }
+        @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+        #popupOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        #popupContent { background: #ffffff; color: #333; padding: 20px; border-radius: 10px; width: 80%; max-width: 600px; max-height: 80vh; overflow-y: auto; position: relative; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px);} to { opacity: 1; transform: translateY(0);} }
+        .closeBtn { background: #e53935; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 5px; position: absolute; top: 10px; right: 10px; }
         .closeBtn:hover { background: #d32f2f; }
     </style>
 </head>
@@ -96,7 +69,10 @@
 <h1>Temp Mail - canhquy.pw</h1>
 
 <div id="controls">
-    <div id="emailDisplay">Email chưa tạo</div>
+    <div id="emailForm">
+        <input type="text" id="usernameInput" placeholder="username">
+        <span id="domainSuffix">@canhquy.pw</span>
+    </div>
     <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
 </div>
@@ -108,7 +84,8 @@
 
 <div id="emailList"></div>
 
-<div id="popupOverlay">
+<!-- Popup đọc thư -->
+<div id="popupOverlay" onclick="handleOverlayClick(event)">
     <div id="popupContent">
         <button class="closeBtn" onclick="closePopup()">X</button>
         <div id="popupBody"></div>
@@ -119,28 +96,50 @@
 let cachedEmails = [];
 let autoRefreshInterval = null;
 
+function randomUsername(length = 8) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
 async function createEmail() {
     const res = await fetch('/create_email', { method: 'POST' });
     const data = await res.json();
-    document.getElementById('emailDisplay').innerText = "Email của bạn: " + data.email;
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = setInterval(fetchEmails, 30000);
+    const email = data.email.split('@')[0];
+    document.getElementById('usernameInput').value = email;
 }
 
 async function fetchEmails() {
+    const username = document.getElementById('usernameInput').value.trim();
+    if (!username) {
+        alert("Vui lòng nhập username trước khi lấy thư!");
+        return;
+    }
+    const emailFull = username + '@canhquy.pw';
+
     document.getElementById('loading').style.display = "block";
-    const res = await fetch('/list_emails');
-    const mails = await res.json();
-    cachedEmails = mails;
+    try {
+        const res = await fetch('/list_emails?email=' + encodeURIComponent(emailFull));
+        const mails = await res.json();
+        cachedEmails = mails;
+    } catch (e) {
+        alert("Không thể lấy thư từ server.");
+        console.error(e);
+        cachedEmails = [];
+    }
+
     document.getElementById('loading').style.display = "none";
 
     const emailList = document.getElementById('emailList');
     emailList.innerHTML = "";
 
-    if (mails.length === 0) {
-        emailList.innerHTML = "<p style='text-align:center;'>Chưa có thư nào</p>";
+    if (cachedEmails.length === 0) {
+        emailList.innerHTML = "<p style='text-align:center;'>Không có thư nào hoặc lỗi.</p>";
     } else {
-        mails.forEach((mail, index) => {
+        cachedEmails.forEach((mail, index) => {
             const div = document.createElement('div');
             div.className = 'email-item';
             div.innerHTML = `<strong>${mail.subject}</strong><small>From: ${mail.from}<br>Date: ${mail.date}</small>`;
@@ -164,6 +163,13 @@ function showPopup(index) {
 
 function closePopup() {
     document.getElementById('popupOverlay').style.display = "none";
+}
+
+function handleOverlayClick(event) {
+    const popupContent = document.getElementById('popupContent');
+    if (!popupContent.contains(event.target)) {
+        closePopup();
+    }
 }
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
