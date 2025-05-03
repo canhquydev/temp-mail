@@ -62,7 +62,7 @@ def list_emails():
             headers = payload.get("headers", [])
             parts = payload.get('parts', [])
             body = ""
-
+        
             if parts:
                 for part in parts:
                     if part['mimeType'] == 'text/html' and 'data' in part['body']:
@@ -71,12 +71,11 @@ def list_emails():
             else:
                 if 'body' in payload and 'data' in payload['body']:
                     body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
-
-
+        
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
             sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
             date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
-
+        
             mails.append({
                 "id": msg['id'],
                 "subject": subject,
@@ -84,7 +83,6 @@ def list_emails():
                 "date": date,
                 "body": body
             })
-
         return jsonify(mails)
     except Exception as e:
         print(f"Error fetching emails: {e}")
