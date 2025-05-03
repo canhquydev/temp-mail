@@ -56,8 +56,12 @@ def list_emails():
 
             if parts:
                 for part in parts:
-                    if part['mimeType'] == 'text/html':
-                        body = base64.urlsafe_b64decode(part['body']['data']).decode()
+                    if part['mimeType'] == 'text/html' and 'data' in part['body']:
+                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+                        break
+            else:
+                if 'body' in payload and 'data' in payload['body']:
+                    body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
 
             subject = ""
             sender = ""
