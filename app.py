@@ -69,12 +69,9 @@ from flask import Flask, request, jsonify, session, send_from_directory
              body = ""
  
              if parts:
-                for part in parts:
-                    if part['mimeType'] == 'text/html' and 'data' in part['body']:
-                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
-                        break
-            else:
-                if 'body' in payload and 'data' in payload['body']:
+                 for part in parts:
+                     if part['mimeType'] == 'text/html' and 'data' in part['body']:
+                         body = base64.urlsafe_b64decode(part['body']['data']).decode()
  
              subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
              sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
