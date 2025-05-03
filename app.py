@@ -38,21 +38,16 @@ def list_emails():
     target_email = request.args.get('email', "").lower()
     mails = []
 
-    try:
     def fetch_by_label(label):
         query = f"to:{target_email}"
-        results = gmail_service.users().messages().list(
         result = gmail_service.users().messages().list(
             userId='me',
             q=query,
-            labelIds=["INBOX", "SPAM"],  # 👈 QUAN TRỌNG: thêm label SPAM vào đây
             labelIds=[label],
             maxResults=10
         ).execute()
-        messages = results.get('messages', [])
         return result.get('messages', [])
 
-        for msg in messages:
     try:
         # lấy thư ở INBOX
         inbox_messages = fetch_by_label("INBOX")
@@ -71,7 +66,12 @@ def list_emails():
             if parts:
                 for part in parts:
                     if part['mimeType'] == 'text/html' and 'data' in part['body']:
-                        body = base64.urlsafe_b64decode(part['body']['data']).decode()
+                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+                        break
+            else:
+                if 'body' in payload and 'data' in payload['body']:
+                    body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+
 
             subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
             sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
