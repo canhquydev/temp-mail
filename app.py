@@ -64,14 +64,16 @@ def create_email():
 
 @app.route('/list_emails', methods=['GET'])
 def list_emails():
-    if not gmail_service:
+    service = gmail_authenticate()  # Luôn lấy lại để kiểm tra token mới nhất
+    if not service:
         return jsonify({"error": "Gmail API không sẵn sàng (token lỗi hoặc chưa khởi tạo)"})
+
     target_email = request.args.get('email', "").lower()
     mails = []
 
     def fetch_by_label(label):
         query = f"to:{target_email}"
-        result = gmail_service.users().messages().list(
+        result = service.users().messages().list(
             userId='me',
             q=query,
             labelIds=[label],
@@ -80,14 +82,12 @@ def list_emails():
         return result.get('messages', [])
 
     try:
-        # lấy thư ở INBOX
         inbox_messages = fetch_by_label("INBOX")
-        # lấy thư ở SPAM
         spam_messages = fetch_by_label("SPAM")
-        
         all_messages = (inbox_messages or []) + (spam_messages or [])
 
         for msg in all_messages:
+            msg_detail = service.users().messages().get(userId='me', id=msg['id']).execute()
             msg_detail = gmail_service.users().messages().get(userId='me', id=msg['id']).execute()
             payload = msg_detail.get('payload', {})
             headers = payload.get("headers", [])
