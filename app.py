@@ -30,7 +30,7 @@ gmail_service = gmail_authenticate()
 @app.route('/create_email', methods=['POST'])
 def create_email():
     new_username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    session['email'] = new_username + "@canhquy.pw"
+    session['email'] = new_username + "@quy.edu.pl"
     return jsonify({"email": session['email']})
 
 @app.route('/list_emails', methods=['GET'])
