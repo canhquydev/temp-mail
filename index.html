@@ -93,7 +93,6 @@
 </div>
 <div id="toastContainer"></div>
 <script>
-<script>
 let cachedEmails = [];
 let autoRefresh = null;
 let lastEmailIds = new Set();
@@ -240,9 +239,9 @@ function handleOverlayClick(event) {
         closePopup();
     }
 }
-
+document.getElementById('createBtn').addEventListener('click', createEmail);
+document.getElementById('refreshBtn').addEventListener('click', fetchEmails);
 window.onload = loadHistory;
-</script>
 
 </script>
 </body>
