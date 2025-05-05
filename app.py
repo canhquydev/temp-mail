@@ -12,6 +12,21 @@ app.secret_key = 'your_secret_key_here'
 
 # Gmail API Scope
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+import requests
+
+TELEGRAM_BOT_TOKEN = os.environ.get("7223400977:AAFsuwLQhfVtgcrmVrNKIiavqpAcKZqG2nk")
+TELEGRAM_CHAT_ID = os.environ.get("6234671228")
+
+def send_telegram_alert(message):
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        try:
+            requests.post(url, data={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": f"🚨 ALERT from TempMail:\n{message}"
+            }, timeout=5)
+        except Exception as ex:
+            print("⚠ Không gửi được Telegram:", ex)
 
 def gmail_authenticate():
     try:
