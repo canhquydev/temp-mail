@@ -92,36 +92,10 @@ async function createEmail() {
     const res = await fetch('/create_email', { method: 'POST' });
     const data = await res.json();
     document.getElementById('emailInput').value = data.email;
+    await fetchEmails(true);  // Gọi ngay sau khi tạo
 }
 
-async function fetchEmails() {
-    const email = document.getElementById('emailInput').value.trim().toLowerCase();
-    console.log("📥 Fetching emails for:", email);
-
-    if (!email.includes('@')) {
-        alert("⛔ Email không hợp lệ!");
-        return;
-    }
-
-    document.getElementById('loading').style.display = "block";
-
-    try {
-        const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
-        const data = await res.json();
-
-        if (data.error) {
-            alert("⚠ " + data.error);
-            cachedEmails = [];
-        } else {
-            cachedEmails = data;
-        }
-    } catch (e) {
-        console.error("❌ Lỗi khi fetch:", e);
-        cachedEmails = [];
-    }
-
-    document.getElementById('loading').style.display = "none";
-
+function renderEmails() {
     const emailList = document.getElementById('emailList');
     emailList.innerHTML = cachedEmails.length === 0
         ? "<p style='text-align:center;'>Không có thư nào hoặc lỗi.</p>"
@@ -133,13 +107,37 @@ async function fetchEmails() {
         `).join('');
 }
 
+async function fetchEmails(showLoading = true) {
+    const email = document.getElementById('emailInput').value.trim().toLowerCase();
+    if (!email.includes('@')) return;
+
+    if (showLoading) document.getElementById('loading').style.display = "block";
+
+    try {
+        const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
+        const data = await res.json();
+
+        if (data.error) {
+            if (showLoading) alert("⚠ " + data.error);
+            cachedEmails = [];
+        } else {
+            if (JSON.stringify(data) !== JSON.stringify(cachedEmails)) {
+                cachedEmails = data;
+                renderEmails();
+            }
+        }
+    } catch (e) {
+        console.error("❌ Lỗi khi fetch:", e);
+        cachedEmails = [];
+        if (showLoading) alert("Lỗi khi lấy thư");
+    }
+
+    if (showLoading) document.getElementById('loading').style.display = "none";
+}
 
 function showPopup(index) {
     const mail = cachedEmails[index];
-
-    // Thêm target="_blank" vào tất cả các thẻ <a>
     const sanitizedBody = mail.body.replace(/<a\s/gi, '<a target="_blank" ');
-
     const popupBody = document.getElementById('popupBody');
     popupBody.innerHTML = `
         <h2 style="color:#4CAF50;">${mail.subject}</h2>
@@ -178,7 +176,12 @@ document.getElementById('copyBtn').addEventListener('click', async function() {
 });
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
-document.getElementById('refreshBtn').addEventListener('click', fetchEmails);
+document.getElementById('refreshBtn').addEventListener('click', () => fetchEmails(true));
+
+// Auto-reload thư mỗi 10 giây mà không hiện loading
+setInterval(() => {
+    fetchEmails(false);
+}, 10000);
 </script>
 
 </body>
