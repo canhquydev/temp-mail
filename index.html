@@ -91,9 +91,13 @@ let cachedEmails = [];
 async function createEmail() {
     const res = await fetch('/create_email', { method: 'POST' });
     const data = await res.json();
-    document.getElementById('emailInput').value = data.email;
-    await fetchEmails(true);  // Gọi ngay sau khi tạo
+    const emailInput = document.getElementById('emailInput');
+    emailInput.value = data.email;
+
+    // Đợi DOM cập nhật xong rồi mới gọi fetch
+    setTimeout(() => fetchEmails(true), 200);
 }
+
 
 function renderEmails() {
     const emailList = document.getElementById('emailList');
@@ -180,8 +184,12 @@ document.getElementById('refreshBtn').addEventListener('click', () => fetchEmail
 
 // Auto-reload thư mỗi 10 giây mà không hiện loading
 setInterval(() => {
-    fetchEmails(false);
+    const email = document.getElementById('emailInput').value.trim().toLowerCase();
+    if (email.includes('@')) {
+        fetchEmails(false); // chỉ fetch khi có email
+    }
 }, 10000);
+
 </script>
 
 </body>
