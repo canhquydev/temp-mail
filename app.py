@@ -14,16 +14,25 @@ app.secret_key = 'your_secret_key_here'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def gmail_authenticate():
-    creds = None
-    credentials_data = os.environ.get('GOOGLE_CREDENTIALS')
-    token_data = os.environ.get('GOOGLE_TOKEN')
+    try:
+        credentials_data = os.environ.get('GOOGLE_CREDENTIALS')
+        token_data = os.environ.get('GOOGLE_TOKEN')
 
-    if credentials_data and token_data:
+        if not credentials_data or not token_data:
+            print("❌ Thiếu biến môi trường: GOOGLE_CREDENTIALS hoặc GOOGLE_TOKEN")
+            return None  # Không raise lỗi, để app vẫn chạy
+
         creds = Credentials.from_authorized_user_info(json.loads(token_data), scopes=SCOPES)
-    else:
-        raise Exception("Missing GOOGLE_CREDENTIALS or GOOGLE_TOKEN environment variables.")
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Thử gọi 1 API nhỏ để xác minh token
+        service.users().labels().list(userId='me').execute()
+        print("✅ Gmail API hoạt động bình thường")
+        return service
 
-    return build('gmail', 'v1', credentials=creds)
+    except Exception as e:
+        print("❌ Gmail API lỗi:", str(e))
+        return None  
 
 gmail_service = gmail_authenticate()
 
@@ -35,6 +44,8 @@ def create_email():
 
 @app.route('/list_emails', methods=['GET'])
 def list_emails():
+    if not gmail_service:
+        return jsonify({"error": "Gmail API không sẵn sàng (token lỗi hoặc chưa khởi tạo)"})
     target_email = request.args.get('email', "").lower()
     mails = []
 
