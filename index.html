@@ -53,32 +53,12 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px);} to { opacity: 1; transform: translateY(0);} }
         .closeBtn { background: #e53935; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 5px; position: absolute; top: 10px; right: 10px; }
         .closeBtn:hover { background: #d32f2f; }
-        .toast {
-            position: fixed; bottom: 20px; right: 20px;
-            background: #4CAF50; color: white; padding: 10px 15px;
-            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            animation: fadeInOut 4s ease-in-out;
-        }
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateY(20px); }
-            10% { opacity: 1; transform: translateY(0); }
-            90% { opacity: 1; }
-            100% { opacity: 0; transform: translateY(20px); }
-        }
-        select#emailHistory {
-        margin-left: 10px;
-        padding: 5px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-        background-color: #fff;
-        font-size: 14px;
-        cursor: pointer;
-    }
     </style>
 </head>
 <body>
 
 <h1>Temp Mail</h1>
+
 <div id="controls">
     <div id="emailForm">
         <div class="input-wrapper" style="width: 300px;">
@@ -89,118 +69,99 @@
     <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
 </div>
+
 <div id="loading">
     <div class="spinner"></div>
     <div>Đang lấy thư...</div>
 </div>
+
 <div id="emailList"></div>
+
+<!-- Popup đọc thư -->
 <div id="popupOverlay" onclick="handleOverlayClick(event)">
     <div id="popupContent">
         <button class="closeBtn" onclick="closePopup()">X</button>
         <div id="popupBody"></div>
     </div>
 </div>
-<div id="toastContainer"></div>
 
 <script>
 let cachedEmails = [];
-let autoRefresh = null;
-let lastEmailIds = new Set();
-let messageCache = {};
-
-function extractOTP(body) {
-    const match = body.match(/\b\d{4,6}\b/);
-    return match ? match[0] : null;
-}
-
-function showToast(message) {
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.textContent = message;
-    document.getElementById("toastContainer").appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
-}
-
-function saveHistory(email) {
-    let history = JSON.parse(localStorage.getItem("emailHistory") || "[]");
-    if (!history.includes(email)) {
-        history.unshift(email);
-        if (history.length > 5) history.pop();
-        localStorage.setItem("emailHistory", JSON.stringify(history));
-    }
-}
-    
-function loadHistory() {
-    let history = JSON.parse(localStorage.getItem("emailHistory") || "[]");
-    if (history.length) {
-        const select = document.createElement("select");
-        select.id = "emailHistory";
-        select.onchange = () => {
-            document.getElementById('emailInput').value = select.value;
-        };
-        history.forEach(email => {
-            const opt = document.createElement("option");
-            opt.value = email;
-            opt.textContent = email;
-            select.appendChild(opt);
-        });
-        document.getElementById("emailForm").appendChild(select);
-    }
-}
 
 async function createEmail() {
     const res = await fetch('/create_email', { method: 'POST' });
     const data = await res.json();
     document.getElementById('emailInput').value = data.email;
-    saveHistory(data.email);
-    startAutoRefresh();
-}
-
-function startAutoRefresh() {
-    window.isAutoRefresh = true;
-    if (autoRefresh) clearInterval(autoRefresh);
-    autoRefresh = setInterval(() => {
-        const email = document.getElementById('emailInput').value.trim();
-        if (email) fetchEmails();
-    }, 10000);
 }
 
 async function fetchEmails() {
     const email = document.getElementById('emailInput').value.trim().toLowerCase();
-    if (!email.includes('@')) return;
+    console.log("📥 Fetching emails for:", email);
 
-    const loadingEl = document.getElementById('loading');
-    if (!window.isAutoRefresh) {
-        loadingEl.classList.remove("auto-hidden");
-        loadingEl.style.display = "block";
-    } else {
-        loadingEl.classList.add("auto-hidden");
+    if (!email.includes('@')) {
+        alert("⛔ Email không hợp lệ!");
+        return;
     }
+
+    document.getElementById('loading').style.display = "block";
 
     try {
         const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
         const data = await res.json();
 
-        if (!data.error) {
-            const newIds = new Set(data.map(mail => mail.id));
-            for (let id of newIds) {
-                if (!lastEmailIds.has(id)) {
-                    showToast("📧 Thư mới vừa đến!");
-                    break;
-                }
-            }
-            lastEmailIds = newIds;
+        if (data.error) {
+            alert("⚠ " + data.error);
+            cachedEmails = [];
+        } else {
             cachedEmails = data;
         }
-    } catch {}
-    loadingEl.style.display = "none";
+    } catch (e) {
+        console.error("❌ Lỗi khi fetch:", e);
+        cachedEmails = [];
+    }
+
+    document.getElementById('loading').style.display = "none";
+
+    const emailList = document.getElementById('emailList');
+    emailList.innerHTML = cachedEmails.length === 0
+        ? "<p style='text-align:center;'>Không có thư nào hoặc lỗi.</p>"
+        : cachedEmails.map((mail, index) => `
+            <div class="email-item" onclick="showPopup(${index})">
+                <strong>${mail.subject}</strong>
+                <small>From: ${mail.from}<br>Date: ${mail.date}</small>
+            </div>
+        `).join('');
 }
 
-document.getElementById('refreshBtn').addEventListener('click', () => {
-    window.isAutoRefresh = false;
-    fetchEmails();
-});
-document.getElementById('createBtn').addEventListener('click', createEmail);
+
+function showPopup(index) {
+    const mail = cachedEmails[index];
+
+    // Thêm target="_blank" vào tất cả các thẻ <a>
+    const sanitizedBody = mail.body.replace(/<a\s/gi, '<a target="_blank" ');
+
+    const popupBody = document.getElementById('popupBody');
+    popupBody.innerHTML = `
+        <h2 style="color:#4CAF50;">${mail.subject}</h2>
+        <p><strong>From:</strong> ${mail.from}</p>
+        <p><strong>Date:</strong> ${mail.date}</p>
+        <hr>
+        <div style="max-height:400px;overflow:auto;border:1px solid #ccc;padding:10px;">${sanitizedBody}</div>
+    `;
+    document.getElementById('popupOverlay').style.display = "flex";
+}
+
+function closePopup() {
+    document.getElementById('popupOverlay').style.display = "none";
+}
+
+function handleOverlayClick(event) {
+    const popupContent = document.getElementById('popupContent');
+    if (!popupContent.contains(event.target)) {
+        closePopup();
+    }
+}
+
 document.getElementById('copyBtn').addEventListener('click', async function() {
     const email = document.getElementById('emailInput').value.trim();
     const copyBtn = document.getElementById('copyBtn');
@@ -216,31 +177,9 @@ document.getElementById('copyBtn').addEventListener('click', async function() {
     }
 });
 
-function showPopup(index) {
-    const mail = cachedEmails[index];
-    const otp = extractOTP(mail.body);
-    const sanitizedBody = mail.body.replace(/<a\s/gi, '<a target="_blank" ');
-
-    document.getElementById('popupBody').innerHTML = `
-        <h2 style="color:#4CAF50;">${mail.subject}</h2>
-        <p><strong>From:</strong> ${mail.from}</p>
-        <p><strong>Date:</strong> ${mail.date}</p>
-        ${otp ? `<p style="font-size:20px;color:#e91e63;"><strong>Mã OTP:</strong> ${otp}</p>` : ""}
-        <hr>
-        <div style="max-height:400px;overflow:auto;border:1px solid #ccc;padding:10px;">${sanitizedBody}</div>
-    `;
-    document.getElementById('popupOverlay').style.display = "flex";
-}
-function closePopup() {
-    document.getElementById('popupOverlay').style.display = "none";
-}
-function handleOverlayClick(event) {
-    const popupContent = document.getElementById('popupContent');
-    if (!popupContent.contains(event.target)) {
-        closePopup();
-    }
-}
-window.onload = loadHistory;
+document.getElementById('createBtn').addEventListener('click', createEmail);
+document.getElementById('refreshBtn').addEventListener('click', fetchEmails);
 </script>
+
 </body>
 </html>
