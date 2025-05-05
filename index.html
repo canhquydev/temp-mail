@@ -53,12 +53,23 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px);} to { opacity: 1; transform: translateY(0);} }
         .closeBtn { background: #e53935; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 5px; position: absolute; top: 10px; right: 10px; }
         .closeBtn:hover { background: #d32f2f; }
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #4CAF50; color: white; padding: 10px 15px;
+            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            animation: fadeInOut 4s ease-in-out;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(20px); }
+        }
     </style>
 </head>
 <body>
 
 <h1>Temp Mail</h1>
-
 <div id="controls">
     <div id="emailForm">
         <div class="input-wrapper" style="width: 300px;">
@@ -69,23 +80,18 @@
     <button id="createBtn">Tạo Email Random</button>
     <button id="refreshBtn">Lấy Thư Ngay</button>
 </div>
-
 <div id="loading">
     <div class="spinner"></div>
     <div>Đang lấy thư...</div>
 </div>
-
 <div id="emailList"></div>
-
-<!-- Popup đọc thư -->
 <div id="popupOverlay" onclick="handleOverlayClick(event)">
     <div id="popupContent">
         <button class="closeBtn" onclick="closePopup()">X</button>
         <div id="popupBody"></div>
     </div>
 </div>
-
-<!-- Gộp các cải tiến vào JS phần cuối file HTML -->
+<div id="toastContainer"></div>
 <script>
 let cachedEmails = [];
 let autoRefresh = null;
@@ -195,32 +201,35 @@ function showPopup(index) {
     `;
     document.getElementById('popupOverlay').style.display = "flex";
 }
-
-window.onload = loadHistory;
-</script>
-
-<!-- Thêm Toast container -->
-<div id="toastContainer"></div>
-
-<!-- Thêm CSS toast vào style -->
-<style>
-.toast {
-    position: fixed; bottom: 20px; right: 20px;
-    background: #4CAF50; color: white; padding: 10px 15px;
-    border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    animation: fadeInOut 4s ease-in-out;
+function closePopup() {
+    document.getElementById('popupOverlay').style.display = "none";
 }
-@keyframes fadeInOut {
-    0% { opacity: 0; transform: translateY(20px); }
-    10% { opacity: 1; transform: translateY(0); }
-    90% { opacity: 1; }
-    100% { opacity: 0; transform: translateY(20px); }
+
+function handleOverlayClick(event) {
+    const popupContent = document.getElementById('popupContent');
+    if (!popupContent.contains(event.target)) {
+        closePopup();
+    }
 }
-</style>
+
+document.getElementById('copyBtn').addEventListener('click', async function() {
+    const email = document.getElementById('emailInput').value.trim();
+    const copyBtn = document.getElementById('copyBtn');
+    if (!email) return;
+
+    try {
+        await navigator.clipboard.writeText(email);
+        copyBtn.innerHTML = "✅";
+        setTimeout(() => copyBtn.innerHTML = "📋", 2000);
+    } catch {
+        copyBtn.innerHTML = "❌";
+        setTimeout(() => copyBtn.innerHTML = "📋", 2000);
+    }
+});
 
 document.getElementById('createBtn').addEventListener('click', createEmail);
 document.getElementById('refreshBtn').addEventListener('click', fetchEmails);
+window.onload = loadHistory;
 </script>
-
 </body>
 </html>
