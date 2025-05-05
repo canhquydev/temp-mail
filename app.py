@@ -14,8 +14,8 @@ app.secret_key = 'your_secret_key_here'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 import requests
 
-TELEGRAM_BOT_TOKEN = os.environ.get("7223400977:AAFsuwLQhfVtgcrmVrNKIiavqpAcKZqG2nk")
-TELEGRAM_CHAT_ID = os.environ.get("6234671228")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 def send_telegram_alert(message):
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
