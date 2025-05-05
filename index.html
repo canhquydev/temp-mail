@@ -125,15 +125,16 @@ async function fetchEmails(showLoading = true) {
             if (showLoading) alert("⚠ " + data.error);
             cachedEmails = [];
         } else {
-            if (JSON.stringify(data) !== JSON.stringify(cachedEmails)) {
-                cachedEmails = data;
-                renderEmails();
-            }
+            // Luôn gán lại dữ liệu và render, kể cả khi giống
+            cachedEmails = data;
         }
+
+        renderEmails(); // luôn gọi để cập nhật UI
     } catch (e) {
         console.error("❌ Lỗi khi fetch:", e);
         cachedEmails = [];
         if (showLoading) alert("Lỗi khi lấy thư");
+        renderEmails(); // vẫn gọi render để xoá UI cũ nếu lỗi
     }
 
     if (showLoading) document.getElementById('loading').style.display = "none";
