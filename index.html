@@ -65,6 +65,15 @@
             90% { opacity: 1; }
             100% { opacity: 0; transform: translateY(20px); }
         }
+        select#emailHistory {
+        margin-left: 10px;
+        padding: 5px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        background-color: #fff;
+        font-size: 14px;
+        cursor: pointer;
+    }
     </style>
 </head>
 <body>
@@ -120,11 +129,12 @@ function saveHistory(email) {
         localStorage.setItem("emailHistory", JSON.stringify(history));
     }
 }
-
+    
 function loadHistory() {
     let history = JSON.parse(localStorage.getItem("emailHistory") || "[]");
     if (history.length) {
         const select = document.createElement("select");
+        select.id = "emailHistory";
         select.onchange = () => {
             document.getElementById('emailInput').value = select.value;
         };
@@ -159,8 +169,12 @@ async function fetchEmails() {
     const email = document.getElementById('emailInput').value.trim().toLowerCase();
     if (!email.includes('@')) return;
 
+    const loadingEl = document.getElementById('loading');
     if (!window.isAutoRefresh) {
-        document.getElementById('loading').style.display = "block";
+        loadingEl.classList.remove("auto-hidden");
+        loadingEl.style.display = "block";
+    } else {
+        loadingEl.classList.add("auto-hidden");
     }
 
     try {
@@ -179,17 +193,7 @@ async function fetchEmails() {
             cachedEmails = data;
         }
     } catch {}
-    document.getElementById('loading').style.display = "none";
-
-    const emailList = document.getElementById('emailList');
-    emailList.innerHTML = cachedEmails.length === 0
-        ? "<p style='text-align:center;'>Không có thư nào hoặc lỗi.</p>"
-        : cachedEmails.map((mail, index) => `
-            <div class="email-item" onclick="showPopup(${index})">
-                <strong>${mail.subject}</strong>
-                <small>From: ${mail.from}<br>Date: ${mail.date}</small>
-            </div>
-        `).join('');
+    loadingEl.style.display = "none";
 }
 
 document.getElementById('refreshBtn').addEventListener('click', () => {
