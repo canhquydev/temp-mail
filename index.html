@@ -95,6 +95,15 @@ async function createEmail() {
 }
 
 async function fetchEmails() {
+    const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
+    const data = await res.json();
+    if (data.error) {
+        alert("⚠ Lỗi khi lấy thư: " + data.error);
+        cachedEmails = [];
+    } else {
+        cachedEmails = data;
+    }
+
     const email = document.getElementById('emailInput').value.trim().toLowerCase();
     if (!email.includes('@')) return;
 
