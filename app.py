@@ -34,20 +34,25 @@ def gmail_authenticate():
         token_data = os.environ.get('GOOGLE_TOKEN')
 
         if not credentials_data or not token_data:
-            print("❌ Thiếu biến môi trường: GOOGLE_CREDENTIALS hoặc GOOGLE_TOKEN")
-            return None  # Không raise lỗi, để app vẫn chạy
+            msg = "❌ Thiếu biến môi trường: GOOGLE_CREDENTIALS hoặc GOOGLE_TOKEN"
+            print(msg)
+            send_telegram_alert(msg)
+            return None
 
         creds = Credentials.from_authorized_user_info(json.loads(token_data), scopes=SCOPES)
         service = build('gmail', 'v1', credentials=creds)
         
-        # Thử gọi 1 API nhỏ để xác minh token
+        # Kiểm tra token còn hợp lệ
         service.users().labels().list(userId='me').execute()
-        print("✅ Gmail API hoạt động bình thường")
+        print("✅ Gmail API hoạt động")
         return service
 
     except Exception as e:
-        print("❌ Gmail API lỗi:", str(e))
-        return None  
+        msg = f"❌ Gmail API lỗi: {e}"
+        print(msg)
+        send_telegram_alert(msg)
+        return None
+
 
 gmail_service = gmail_authenticate()
 
