@@ -95,27 +95,31 @@ async function createEmail() {
 }
 
 async function fetchEmails() {
-    const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
-    const data = await res.json();
-    if (data.error) {
-        alert("⚠ Lỗi khi lấy thư: " + data.error);
-        cachedEmails = [];
-    } else {
-        cachedEmails = data;
-    }
-
     const email = document.getElementById('emailInput').value.trim().toLowerCase();
-    if (!email.includes('@')) return;
+    console.log("📥 Fetching emails for:", email);
+
+    if (!email.includes('@')) {
+        alert("⛔ Email không hợp lệ!");
+        return;
+    }
 
     document.getElementById('loading').style.display = "block";
+
     try {
         const res = await fetch('/list_emails?email=' + encodeURIComponent(email));
-        const mails = await res.json();
-        cachedEmails = mails;
+        const data = await res.json();
+
+        if (data.error) {
+            alert("⚠ " + data.error);
+            cachedEmails = [];
+        } else {
+            cachedEmails = data;
+        }
     } catch (e) {
-        console.error(e);
+        console.error("❌ Lỗi khi fetch:", e);
         cachedEmails = [];
     }
+
     document.getElementById('loading').style.display = "none";
 
     const emailList = document.getElementById('emailList');
@@ -128,6 +132,7 @@ async function fetchEmails() {
             </div>
         `).join('');
 }
+
 
 function showPopup(index) {
     const mail = cachedEmails[index];
