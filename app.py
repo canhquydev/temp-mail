@@ -11,9 +11,7 @@ import string
 import json
 import requests
 import secrets
-import subprocess
 import psycopg2
-import subprocess
 from psycopg2.extras import RealDictCursor
 from functools import wraps
 import re
@@ -21,10 +19,7 @@ import urllib.parse
 from flask import render_template
 PACKAGE_PATTERN = re.compile(r'subs:com\\.google\\.android\\.apps\\.subscriptions\\.red:g1\\.(.*?)\\\"')
 CODE_PATTERN = re.compile(r'\\[(?:null,){5}\\[\\\"(.*?)\\\"\\]\\]')
-
-subprocess.run(["python", "encode_html.py"])
-app = Flask(__name__, template_folder='templates')
-port = int(os.environ.get('PORT', 5000))
+app = Flask(__name__, template_folder='.')
 app.secret_key = 'your_secret_key_here'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -171,7 +166,7 @@ def list_emails():
 
 @app.route('/')
 def serve_index():
-    return send_from_directory('templates', 'index_obfuscated.html')
+    return send_from_directory('.', 'index.html')
 	
 @app.route('/api/create', methods=['POST'])
 def api_create_email():
@@ -411,9 +406,10 @@ def delete_api_key():
 
     return jsonify({"success": True})
 @app.route('/congcu')
-def serve_congcu():
-    return send_from_directory('templates', 'congcu_obfuscated.html')
+def change_package():
+    return render_template('congcu.html')
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=False, host='0.0.0.0', port=port)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Công cụ Google</title>
+  <link rel="icon" href="https://img.icons8.com/?size=100&id=17949&format=png&color=000000" type="image/x-icon">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+  <div class="w-full max-w-3xl bg-white rounded-2xl shadow-lg p-6">
+    <h2 class="text-2xl font-bold mb-4 text-blue-700">Công cụ</h2>
+
+    <label class="block mb-2 font-semibold">🔗 Nhập link chứa gói Google:</label>
+    <textarea id="linkInput" rows="5" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Dán link vào đây..."></textarea>
+
+    <div class="mt-6">
+      <h3 class="font-semibold text-lg mb-2">Chọn gói mới:</h3>
+      <div class="space-x-4">
+        <label><input type="radio" name="newPkg" value="5tb.annual" class="mr-1"> 5TB</label>
+        <label><input type="radio" name="newPkg" value="10tb" class="mr-1"> 10TB</label>
+        <label><input type="radio" name="newPkg" value="20tb" class="mr-1"> 20TB</label>
+        <label><input type="radio" name="newPkg" value="30tb" class="mr-1"> 30TB</label>
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <h3 class="font-semibold text-lg mb-2">Chọn mã code mới:</h3>
+      <div class="space-x-4">
+        <label><input type="radio" name="newCode" value="0" class="mr-1"> 2C0</label>
+      </div>
+    </div>
+
+    <div class="mt-6 text-center">
+      <button onclick="generate()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-xl shadow transition-all">
+        🚀Mở link
+      </button>
+    </div>
+  </div>
+
+  <script>
+    function generate() {
+      const original = document.getElementById("linkInput").value;
+
+      const pkgRadio = document.querySelector('input[name="newPkg"]:checked');
+      const codeRadio = document.querySelector('input[name="newCode"]:checked');
+
+      if (!pkgRadio || !codeRadio) {
+        alert("⚠️ Vui lòng chọn cả gói và mã code mới!");
+        return;
+      }
+
+      const newPkg = pkgRadio.value;
+      const newCode = codeRadio.value;
+
+      // Thay gói trong link (g1.Xtb.annual)
+      let updated = original.replace(/subs%3Acom\.google\.android\.apps\.subscriptions\.red%3Ag1\.\w+\.annual/g,
+        `subs%3Acom.google.android.apps.subscriptions.red%3Ag1.${newPkg}`);
+
+      // Thay mã dạng %2C6%2C (ví dụ) → %2C0%2C
+      updated = updated.replace(/%2C\d+%2C/, `%2C${newCode}%2C`);
+
+      // Mở link mới
+      window.open(updated, '_blank');
+    }
+  </script>
+</body>
+</html>

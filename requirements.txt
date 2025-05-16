@@ -1,4 +1,4 @@
-Flask==2.3.3
+Flask
 gunicorn
 google-api-python-client
 google-auth
