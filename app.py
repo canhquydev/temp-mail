@@ -409,6 +409,27 @@ def delete_api_key():
 def change_package():
     return render_template('congcu.html')
 
+@app.route("/api/congcu", methods=["POST"])
+def congcu():
+    data = request.json or {}
+    original = data.get("link")
+    new_pkg = data.get("newPkg")
+    new_code = data.get("newCode")
+
+    if not original or not new_pkg or not new_code:
+        return jsonify({"error": "Thiếu dữ liệu."}), 400
+
+    try:
+        updated = re.sub(
+            r"subs%3Acom\.google\.android\.apps\.subscriptions\.red%3Ag1\.\w+\.annual",
+            f"subs%3Acom.google.android.apps.subscriptions.red%3Ag1.{new_pkg}",
+            original
+        )
+        updated = re.sub(r"%2C\d+%2C", f"%2C{new_code}%2C", updated)
+        return jsonify({"new_link": updated})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     init_db()
     port = int(os.environ.get('PORT', 5000))
