@@ -38,33 +38,30 @@
   </div>
 
   <script>
-    async function generate() {
-  const original = document.getElementById("linkInput").value.trim();
-  const pkgRadio = document.querySelector('input[name="newPkg"]:checked');
-  const codeRadio = document.querySelector('input[name="newCode"]:checked');
+    function generate() {
+      const original = document.getElementById("linkInput").value;
 
-  if (!pkgRadio || !codeRadio) {
-    alert("⚠️ Vui lòng chọn cả gói và mã code mới!");
-    return;
-  }
+      const pkgRadio = document.querySelector('input[name="newPkg"]:checked');
+      const codeRadio = document.querySelector('input[name="newCode"]:checked');
 
-  const res = await fetch('/api/congcu', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      link: original,
-      newPkg: pkgRadio.value,
-      newCode: codeRadio.value
-    })
-  });
+      if (!pkgRadio || !codeRadio) {
+        alert("⚠️ Vui lòng chọn cả gói và mã code mới!");
+        return;
+      }
 
-  const data = await res.json();
-  if (data.new_link) {
-    window.open(data.new_link, '_blank');
-  } else {
-    alert("❌ Lỗi xử lý: " + (data.error || "Không xác định"));
-  }
-}
+      const newPkg = pkgRadio.value;
+      const newCode = codeRadio.value;
+
+      // Thay gói trong link (g1.Xtb.annual)
+      let updated = original.replace(/subs%3Acom\.google\.android\.apps\.subscriptions\.red%3Ag1\.\w+\.annual/g,
+        `subs%3Acom.google.android.apps.subscriptions.red%3Ag1.${newPkg}`);
+
+      // Thay mã dạng %2C6%2C (ví dụ) → %2C0%2C
+      updated = updated.replace(/%2C\d+%2C/, `%2C${newCode}%2C`);
+
+      // Mở link mới
+      window.open(updated, '_blank');
+    }
   </script>
 </body>
 </html>
