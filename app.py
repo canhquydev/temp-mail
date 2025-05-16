@@ -15,11 +15,10 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from functools import wraps
 import re
-import urllib.parse
 from flask import render_template
 PACKAGE_PATTERN = re.compile(r'subs:com\\.google\\.android\\.apps\\.subscriptions\\.red:g1\\.(.*?)\\\"')
 CODE_PATTERN = re.compile(r'\\[(?:null,){5}\\[\\\"(.*?)\\\"\\]\\]')
-app = Flask(__name__, template_folder='.')
+app = Flask(__name__, template_folder='templates')
 app.secret_key = 'your_secret_key_here'
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -166,8 +165,7 @@ def list_emails():
 
 @app.route('/')
 def serve_index():
-    return send_from_directory('.', 'index.html')
-	
+    return render_template('index.html')
 @app.route('/api/create', methods=['POST'])
 def api_create_email():
     data = request.json or {}
