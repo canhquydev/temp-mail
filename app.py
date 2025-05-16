@@ -425,7 +425,7 @@ def congcu():
             f"subs%3Acom.google.android.apps.subscriptions.red%3Ag1.{new_pkg}",
             original
         )
-        updated = original.replace("%2C6%2C", f"%2C{new_code}%2C", 1)
+        updated = original.replace("%2C6%2C", f"%2C{new_code}%2C", updated)
         return jsonify({"new_link": updated})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
