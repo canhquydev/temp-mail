@@ -12,6 +12,8 @@ import json
 import requests
 import secrets
 import psycopg2
+import urllib.parse
+import base64
 from psycopg2.extras import RealDictCursor
 from functools import wraps
 import re
@@ -418,15 +420,29 @@ def congcu():
         return jsonify({"error": "Thiếu dữ liệu."}), 400
 
     try:
-        updated = re.sub(
-            r"subs%3Acom\.google\.android\.apps\.subscriptions\.red%3Ag1\.\w+\.annual",
-            f"subs%3Acom.google.android.apps.subscriptions.red%3Ag1.{new_pkg}",
-            original
-        )
-        updated = re.sub(r"%2C\d+%2C", f"%2C{new_code}%2C", updated, count=1)
+        updated = update_link(original, new_pkg, new_code)
         return jsonify({"new_link": updated})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def update_link(original_link, new_pkg, new_code):
+    try:
+        decoded = urllib.parse.unquote(original_link)
+        matches = re.findall(r'subs:com\.google\.android\.apps\.subscriptions\.red:g1\.[^"]+', decoded)
+        if not matches:
+            return original_link
+
+        updated = original_link
+        for m in matches:
+            new_m = re.sub(r'g1\.[^"]+', f'g1.{new_pkg}', m)
+            updated = updated.replace(urllib.parse.quote(m), urllib.parse.quote(new_m), 1)
+
+        updated = re.sub(r'%2C\d+%2C', f'%2C{new_code}%2C', updated, count=1)
+        return updated
+    except Exception as ex:
+        print("❌ update_link() lỗi:", ex)
+        raise
+
 
 if __name__ == '__main__':
     init_db()
