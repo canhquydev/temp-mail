@@ -7,3 +7,5 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        value: postgresql://database_66o8_user:nw6Ni8PyvoYClMZdAOqWR5iNN7bjMt4R@dpg-d0jtho3e5dus73b9gisg-a/database_66o8
