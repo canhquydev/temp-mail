@@ -99,7 +99,7 @@ def serve_email_with_param(email):
     if '@' not in email:
         email += '@quy.edu.pl'  # nếu chỉ truyền tên thì thêm domain vào
 
-    return send_from_directory('.', 'index.html')
+    return render_template('index.html')
 
 @app.route('/create_email', methods=['POST'])
 def create_email():
