@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, session, send_from_directory
+from flask import Flask, request, jsonify, session, send_from_directory, render_template
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -10,18 +10,17 @@ import random
 import string
 import json
 import requests
-import secrets
+# import secrets # Không còn cần thiết nếu không tạo API key
 import psycopg2
 import urllib.parse
-import base64
 from psycopg2.extras import RealDictCursor
 from functools import wraps
 import re
-from flask import render_template
+
 PACKAGE_PATTERN = re.compile(r'subs:com\\.google\\.android\\.apps\\.subscriptions\\.red:g1\\.(.*?)\\\"')
 CODE_PATTERN = re.compile(r'\\[(?:null,){5}\\[\\\"(.*?)\\\"\\]\\]')
 app = Flask(__name__, template_folder='templates')
-app.secret_key = 'your_secret_key_here'
+app.secret_key = 'your_secret_key_here' # Hãy thay đổi secret key này trong môi trường production
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -42,23 +41,9 @@ def send_telegram_alert(message):
             }, timeout=5)
         except Exception as ex:
             print("⚠ Không gửi được Telegram:", ex)
-def require_api_key(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        token = auth_header.replace("Bearer ", "").strip()
-        
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT 1 FROM api_keys WHERE key=%s", (token,))
-        valid = cur.fetchone()
-        cur.close()
-        conn.close()
 
-        if not valid:
-            return jsonify({"error": "API key không hợp lệ"}), 403
-        return f(*args, **kwargs)
-    return decorated
+# Đã loại bỏ hàm require_api_key và decorator @require_api_key
+
 def gmail_authenticate():
     try:
         credentials_data = os.environ.get('GOOGLE_CREDENTIALS')
@@ -82,7 +67,7 @@ def gmail_authenticate():
             scopes=SCOPES
         )
 
-        creds.refresh(Request())  # Luôn tạo access_token mới
+        creds.refresh(Request())
         service = build('gmail', 'v1', credentials=creds)
         service.users().labels().list(userId='me').execute()
 
@@ -94,26 +79,33 @@ def gmail_authenticate():
         print(msg)
         send_telegram_alert(msg)
         return None
+
 @app.route('/<path:email>')
 def serve_email_with_param(email):
     if '@' not in email:
-        email += '@quy.edu.pl'  # nếu chỉ truyền tên thì thêm domain vào
-
+        # Mặc định tên miền nếu người dùng chỉ nhập username
+        # Email mặc định sẽ được xử lý bởi frontend JavaScript để điền vào ô input
+        pass # Để frontend xử lý việc điền email vào input
     return render_template('index.html')
+
 
 @app.route('/create_email', methods=['POST'])
 def create_email():
     new_username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-    session['email'] = new_username + "@quy.edu.pl"
-    return jsonify({"email": session['email']})
+    # session['email'] = new_username + "@quy.edu.pl" # Không nên lưu email trong session nếu không cần thiết
+    # Trả về email để client tự quản lý
+    return jsonify({"email": new_username + "@quy.edu.pl"})
 
 @app.route('/list_emails', methods=['GET'])
 def list_emails():
     service = gmail_authenticate()
     if not service:
-        return jsonify({"error": "Gmail API không sẵn sàng (token lỗi hoặc chưa khởi tạo)"})
+        return jsonify({"error": "Gmail API không sẵn sàng (token lỗi hoặc chưa khởi tạo)"}), 503
 
     target_email = request.args.get('email', "").lower()
+    if not target_email or '@' not in target_email:
+        return jsonify({"error": "Địa chỉ email không hợp lệ hoặc bị thiếu."}), 400
+        
     mails = []
 
     def fetch_by_label(label):
@@ -122,116 +114,140 @@ def list_emails():
             userId='me',
             q=query,
             labelIds=[label],
-            maxResults=10
+            maxResults=10 # Giới hạn số lượng email lấy về
         ).execute()
         return result.get('messages', [])
 
     try:
         inbox_messages = fetch_by_label("INBOX")
-        spam_messages = fetch_by_label("SPAM")
+        spam_messages = fetch_by_label("SPAM") # Cũng kiểm tra trong spam
         all_messages = (inbox_messages or []) + (spam_messages or [])
 
-        for msg in all_messages:
-            msg_detail = service.users().messages().get(userId='me', id=msg['id']).execute()
+        for msg_ref in all_messages: # Đổi tên biến để tránh nhầm lẫn
+            msg_detail = service.users().messages().get(userId='me', id=msg_ref['id']).execute()
             payload = msg_detail.get('payload', {})
             headers = payload.get("headers", [])
             parts = payload.get('parts', [])
             body = ""
 
-            if parts:
+            if parts: # Ưu tiên lấy HTML body
                 for part in parts:
                     if part['mimeType'] == 'text/html' and 'data' in part['body']:
                         body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
                         break
-            else:
-                if 'body' in payload and 'data' in payload['body']:
-                    body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+                if not body: # Nếu không có HTML, thử lấy text/plain
+                     for part in parts:
+                        if part['mimeType'] == 'text/plain' and 'data' in part['body']:
+                            body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+                            # Có thể cần chuyển đổi text/plain sang HTML nếu muốn hiển thị đẹp hơn
+                            body = body.replace("\n", "<br>") # Chuyển đổi cơ bản
+                            break
+            elif 'body' in payload and 'data' in payload['body']: # Fallback nếu không có parts
+                body_data = payload['body']['data']
+                # Kiểm tra mimeType của payload chính nếu không có parts
+                mime_type = payload.get('mimeType', '')
+                body = base64.urlsafe_b64decode(body_data).decode('utf-8', errors='ignore')
+                if mime_type == 'text/plain':
+                     body = body.replace("\n", "<br>")
 
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
-            date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+
+            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '') # lower() để khớp case-insensitive
+            sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
+            date = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
 
             mails.append({
-                "id": msg['id'],
+                "id": msg_ref['id'],
                 "subject": subject,
                 "from": sender,
                 "date": date,
-                "body": body
+                "body": body # Trả về cả body
             })
-
+        # Sắp xếp email theo ngày nhận, mới nhất lên đầu (cần parse date)
+        # Tạm thời không sắp xếp ở backend, để frontend tự xử lý nếu cần
         return jsonify(mails)
 
     except Exception as e:
-        print(f"❌ Error fetching emails: {e}")
-        return jsonify([])
+        print(f"❌ Error fetching emails for {target_email}: {e}")
+        # Trả về lỗi cụ thể hơn cho client nếu có thể
+        return jsonify({"error": f"Lỗi khi lấy email: {str(e)}"}), 500
+
 
 @app.route('/')
 def serve_index():
     return render_template('index.html')
+
 @app.route('/api/create', methods=['POST'])
 def api_create_email():
     data = request.json or {}
-    custom = data.get("username")
-    if custom:
-        email = f"{custom.lower()}@quy.edu.pl"
+    custom_username = data.get("username") # Đổi tên biến cho rõ ràng
+    if custom_username:
+        # Validate custom_username: chỉ cho phép chữ cái, số, và một số ký tự đặc biệt an toàn
+        if not re.match(r"^[a-zA-Z0-9._-]+$", custom_username):
+            return jsonify({"error": "Tên người dùng tùy chỉnh chứa ký tự không hợp lệ."}), 400
+        email = f"{custom_username.lower()}@quy.edu.pl"
     else:
         email = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8)) + "@quy.edu.pl"
     return jsonify({"email": email})
 
 @app.route('/api/inbox', methods=['GET'])
-@require_api_key
+# Không còn @require_api_key
 def api_list_emails():
     service = gmail_authenticate()
     if not service:
-        return jsonify({"error": "Gmail API lỗi"})
+        return jsonify({"error": "Lỗi xác thực Gmail API"}), 503
 
     target_email = request.args.get('email', "").lower()
-    if not target_email:
-        return jsonify({"error": "Thiếu email"})
+    if not target_email or '@' not in target_email:
+        return jsonify({"error": "Thiếu tham số email hoặc email không hợp lệ"}), 400
 
     def fetch_by_label(label):
         query = f"to:{target_email}"
         result = service.users().messages().list(
-            userId='me', q=query, labelIds=[label], maxResults=10
+            userId='me', q=query, labelIds=[label], maxResults=10 # Giới hạn số lượng
         ).execute()
         return result.get('messages', [])
 
     try:
-        inbox = fetch_by_label("INBOX")
-        spam = fetch_by_label("SPAM")
-        all_msgs = (inbox or []) + (spam or [])
+        inbox_msgs = fetch_by_label("INBOX")
+        spam_msgs = fetch_by_label("SPAM")
+        all_msgs_refs = (inbox_msgs or []) + (spam_msgs or [])
 
         mails = []
-        for msg in all_msgs:
-            detail = service.users().messages().get(userId='me', id=msg['id']).execute()
+        for msg_ref in all_msgs_refs:
+            detail = service.users().messages().get(userId='me', id=msg_ref['id']).execute()
             payload = detail.get("payload", {})
             headers = payload.get("headers", [])
-            snippet = detail.get("snippet", "")
-            subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
-            sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
-            date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+            snippet = detail.get("snippet", "") # Giữ snippet cho danh sách nhanh
+            subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '')
+            sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
+            date_str = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
 
             mails.append({
-                "id": msg['id'],
+                "id": msg_ref['id'],
                 "subject": subject,
                 "from": sender,
-                "date": date,
-                "snippet": snippet
+                "date": date_str,
+                "snippet": snippet # Snippet có thể hữu ích cho hiển thị danh sách
             })
-
         return jsonify({"emails": mails})
-
     except Exception as e:
-        return jsonify({"error": str(e)})
+        print(f"Lỗi khi lấy danh sách email qua API cho {target_email}: {e}")
+        return jsonify({"error": f"Lỗi máy chủ khi xử lý yêu cầu: {str(e)}"}), 500
+
 @app.route('/api/email/<msg_id>', methods=['GET'])
+# Endpoint này cũng không cần API key nữa
 def api_read_email(msg_id):
     service = gmail_authenticate()
     if not service:
-        return jsonify({"error": "Gmail API lỗi"})
+        return jsonify({"error": "Lỗi xác thực Gmail API"}), 503
 
-    email = request.args.get('email', '').lower()
-    if not email:
-        return jsonify({"error": "Thiếu email"})
+    # `email` query parameter không thực sự cần thiết nếu msg_id là duy nhất toàn cục
+    # và không có kiểm tra quyền sở hữu dựa trên email ở đây.
+    # Tuy nhiên, client hiện tại gửi nó, nên ta có thể giữ lại hoặc bỏ qua.
+    # target_email_param = request.args.get('email', '').lower()
+
+    if not msg_id:
+        return jsonify({"error": "Thiếu ID tin nhắn"}), 400
 
     try:
         msg_detail = service.users().messages().get(userId='me', id=msg_id).execute()
@@ -245,23 +261,39 @@ def api_read_email(msg_id):
                 if part['mimeType'] == 'text/html' and 'data' in part['body']:
                     body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
                     break
-        elif 'body' in payload and 'data' in payload['body']:
-            body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8', errors='ignore')
+            if not body: # Fallback to text/plain if no HTML part
+                for part in parts:
+                    if part['mimeType'] == 'text/plain' and 'data' in part['body']:
+                        body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+                        # Chuyển đổi cơ bản text sang HTML cho hiển thị
+                        body = body.replace("\n", "<br>").replace("\r\n", "<br>")
+                        break
+        elif 'body' in payload and 'data' in payload['body']: # No parts, check main body
+            body_data = payload['body']['data']
+            mime_type = payload.get('mimeType', '')
+            body = base64.urlsafe_b64decode(body_data).decode('utf-8', errors='ignore')
+            if mime_type == 'text/plain':
+                body = body.replace("\n", "<br>").replace("\r\n", "<br>")
 
-        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), '')
-        sender = next((h['value'] for h in headers if h['name'] == 'From'), '')
-        date = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+
+        subject = next((h['value'] for h in headers if h['name'].lower() == 'subject'), '')
+        sender = next((h['value'] for h in headers if h['name'].lower() == 'from'), '')
+        date_str = next((h['value'] for h in headers if h['name'].lower() == 'date'), '')
 
         return jsonify({
+            "id": msg_id, # Trả về cả ID
             "subject": subject,
             "from": sender,
-            "date": date,
+            "date": date_str,
             "body": body
         })
-
     except Exception as e:
-        return jsonify({"error": str(e)})
-API_KEY_FILE = "api_keys.json"
+        print(f"Lỗi khi đọc chi tiết email {msg_id} qua API: {e}")
+        # Kiểm tra xem lỗi có phải do không tìm thấy email (404 từ Google) không
+        if hasattr(e, 'resp') and e.resp.status == 404:
+            return jsonify({"error": f"Không tìm thấy email với ID: {msg_id}"}), 404
+        return jsonify({"error": f"Lỗi máy chủ khi xử lý yêu cầu: {str(e)}"}), 500
+
 def init_db():
     conn = get_db()
     cur = conn.cursor()
@@ -271,31 +303,34 @@ def init_db():
             password_hash TEXT NOT NULL,
             created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-
-        CREATE TABLE IF NOT EXISTS api_keys (
-            key TEXT PRIMARY KEY,
-            user_email TEXT REFERENCES users(email),
-            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+    """) # Bảng api_keys đã được loại bỏ
     conn.commit()
     cur.close()
     conn.close()
 
 init_db()
+
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
     email = data.get('email', '').lower().strip()
     password = data.get('password', '').strip()
+
     if not email or not password:
         return jsonify({"error": "Email và mật khẩu là bắt buộc."}), 400
+    if '@' not in email: # Kiểm tra email hợp lệ cơ bản
+        return jsonify({"error": "Địa chỉ email không hợp lệ."}), 400
+    if len(password) < 6: # Yêu cầu mật khẩu tối thiểu
+         return jsonify({"error": "Mật khẩu phải có ít nhất 6 ký tự."}), 400
+
 
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM users WHERE email=%s", (email,))
     if cur.fetchone():
-        return jsonify({"error": "Tài khoản đã tồn tại."}), 400
+        cur.close()
+        conn.close()
+        return jsonify({"error": "Tài khoản đã tồn tại."}), 409 # 409 Conflict
 
     cur.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s)",
                 (email, generate_password_hash(password)))
@@ -303,8 +338,8 @@ def register():
     cur.close()
     conn.close()
 
-    session['user'] = email
-    return jsonify({"message": "Đăng ký thành công.", "email": email})
+    session['user'] = email # Tự động đăng nhập sau khi đăng ký
+    return jsonify({"message": "Đăng ký thành công.", "email": email}), 201
 
 
 @app.route('/api/login', methods=['POST'])
@@ -312,6 +347,9 @@ def login():
     data = request.json
     email = data.get('email', '').lower().strip()
     password = data.get('password', '').strip()
+
+    if not email or not password:
+        return jsonify({"error": "Email và mật khẩu là bắt buộc."}), 400
 
     conn = get_db()
     cur = conn.cursor()
@@ -340,111 +378,77 @@ def get_current_user():
     return jsonify({"error": "Chưa đăng nhập."}), 401
 
 
-@app.route('/api/create_api_key', methods=['POST'])
-def create_api_key():
-    if 'user' not in session:
-        return jsonify({"error": "Chưa đăng nhập"}), 401
+# Đã loại bỏ các API endpoint liên quan đến API Key:
+# /api/create_api_key, /api/my_keys, /api/delete_key
 
-    user_email = session['user']
-    conn = get_db()
-    cur = conn.cursor()
-
-    # Kiểm tra user đã có key chưa
-    cur.execute("SELECT key FROM api_keys WHERE user_email = %s", (user_email,))
-    existing = cur.fetchone()
-    if existing:
-        cur.close()
-        conn.close()
-        return jsonify({"error": "Bạn chỉ được tạo 1 API key. Vui lòng xoá key cũ trước."}), 400
-
-    new_key = secrets.token_hex(16)
-    created = datetime.utcnow()
-    cur.execute("INSERT INTO api_keys (key, user_email, created) VALUES (%s, %s, %s)",
-                (new_key, user_email, created))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return jsonify({"key": new_key})
-
-
-
-@app.route('/api/my_keys', methods=['GET'])
-def list_api_keys():
-    if 'user' not in session:
-        return jsonify({"error": "Chưa đăng nhập"}), 401
-
-    user_email = session['user']
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT key, created FROM api_keys WHERE user_email=%s", (user_email,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-
-    return jsonify(rows)
-
-
-@app.route('/api/delete_key', methods=['POST'])
-def delete_api_key():
-    if 'user' not in session:
-        return jsonify({"error": "Chưa đăng nhập"}), 401
-
-    data = request.json or {}
-    key_to_delete = data.get("key")
-    if not key_to_delete:
-        return jsonify({"error": "Thiếu key"}), 400
-
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM api_keys WHERE key=%s AND user_email=%s", (key_to_delete, session['user']))
-    if cur.rowcount == 0:
-        return jsonify({"error": "Không tìm thấy key hoặc không có quyền xoá"}), 403
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return jsonify({"success": True})
 @app.route('/congcu')
-def change_package():
+def change_package_page(): # Đổi tên hàm để tránh trùng với tên route
     return render_template('congcu.html')
 
 @app.route("/api/congcu", methods=["POST"])
-def congcu():
+def api_congcu_process(): # Đổi tên hàm
     data = request.json or {}
-    original = data.get("link")
+    original_link = data.get("link") # Đổi tên biến
     new_pkg = data.get("newPkg")
     new_code = data.get("newCode")
 
-    if not original or not new_pkg or not new_code:
-        return jsonify({"error": "Thiếu dữ liệu."}), 400
+    if not original_link or not new_pkg or not new_code:
+        return jsonify({"error": "Thiếu dữ liệu đầu vào."}), 400
 
     try:
-        updated = update_link(original, new_pkg, new_code)
-        return jsonify({"new_link": updated})
+        updated_link = update_link_parameters(original_link, new_pkg, new_code) # Đổi tên hàm
+        return jsonify({"new_link": updated_link})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Lỗi trong /api/congcu: {e}")
+        return jsonify({"error": f"Lỗi xử lý: {str(e)}"}), 500
 
-def update_link(original_link, new_pkg, new_code):
+def update_link_parameters(original_link, new_pkg, new_code): # Đổi tên hàm
     try:
-        decoded = urllib.parse.unquote(original_link)
-        matches = re.findall(r'subs:com\.google\.android\.apps\.subscriptions\.red:g1\.[^"]+', decoded)
+        # Sử dụng urllib.parse để xử lý URL một cách an toàn hơn
+        # Tuy nhiên, logic hiện tại dựa trên thay thế chuỗi phức tạp, cần cẩn thận
+        decoded_link = urllib.parse.unquote(original_link)
+        
+        # Thay thế package
+        # Cần đảm bảo pattern này chính xác và không gây ra lỗi ngoài ý muốn
+        # Ví dụ: subs:com.google.android.apps.subscriptions.red:g1.OLD_PACKAGE_NAME"
+        # new_m_string = f'g1.{new_pkg}'
+        # updated_link_pkg = re.sub(r'g1\.[^"]+', new_m_string, decoded_link) # Có thể không đủ an toàn
+
+        # Giữ lại logic regex gốc nếu nó đã hoạt động đúng
+        matches = re.findall(r'subs:com\.google\.android\.apps\.subscriptions\.red:g1\.[^"]+', decoded_link)
         if not matches:
-            return original_link
+            # Nếu không tìm thấy pattern package, có thể trả về link gốc hoặc báo lỗi
+            # return original_link # Hoặc raise ValueError("Không tìm thấy pattern package trong link.")
+            pass # Bỏ qua nếu không tìm thấy, sẽ cố gắng thay thế code
 
-        updated = original_link
-        for m in matches:
-            new_m = re.sub(r'g1\.[^"]+', f'g1.{new_pkg}', m)
-            updated = updated.replace(urllib.parse.quote(m), urllib.parse.quote(new_m), 1)
-
-        updated = re.sub(r'%2C\d+%2C', f'%2C{new_code}%2C', updated, count=1)
-        return updated
+        updated_link_processing = original_link # Bắt đầu lại từ link gốc đã quote
+        for m_pattern in matches:
+            new_m_replacement_unquoted = re.sub(r'g1\.[^"]+', f'g1.{new_pkg}', m_pattern)
+            updated_link_processing = updated_link_processing.replace(
+                urllib.parse.quote(m_pattern, safe='/:=?.&'), 
+                urllib.parse.quote(new_m_replacement_unquoted, safe='/:=?.&'), 
+                1
+            )
+        
+        # Thay thế mã code
+        # Pattern gốc: r'%2C\d+%2C' -> tìm kiếm một số được bao bởi %2C (dấu phẩy đã mã hóa URL)
+        # Ví dụ: ...%2COLD_CODE%2C...
+        # Thay thế bằng: ...%2CNEW_CODE%2C...
+        # count=1 để chỉ thay thế lần xuất hiện đầu tiên
+        final_updated_link = re.sub(r'%2C\d+%2C', f'%2C{new_code}%2C', updated_link_processing, count=1)
+        return final_updated_link
+        
     except Exception as ex:
-        print("❌ update_link() lỗi:", ex)
-        raise
+        print("❌ update_link_parameters() lỗi:", ex)
+        raise # Ném lại lỗi để endpoint /api/congcu có thể bắt và trả về lỗi 500
+
+# Static files (CSS, JS)
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 
 if __name__ == '__main__':
-    
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+    # Chạy với debug=False trong môi trường production
+    app.run(host='0.0.0.0', port=port, debug=False)
